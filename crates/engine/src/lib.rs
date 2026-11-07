@@ -15,6 +15,7 @@ pub mod display;
 pub mod fill;
 pub mod io;
 pub mod links;
+pub mod live;
 pub mod macros;
 pub mod outline;
 pub mod paper;
@@ -531,6 +532,9 @@ pub struct Session {
     /// Measures cell text for AutoFit Column Width. Without it (CLI, MCP) AutoFit uses
     /// [`cmd::format::approx_text_width`].
     pub text_width: Option<TextWidth>,
+    /// Editing together with others (Clawku): the shared workbook's changes go through the host
+    /// in one order ([`live`]).
+    pub live: Option<live::Live>,
 }
 
 impl Session {
@@ -672,6 +676,20 @@ impl Session {
         if let Err(why) = (spec.enabled)(self) {
             return Err(EngineError::Disabled(id.to_string(), why));
         }
+        // Editing together: a top-level change to the shared workbook goes through the host.
+        if self.depth == 0 && self.live.is_some() {
+            if let Some(answer) = self.live_before(spec, id, &params) {
+                return answer;
+            }
+            let result = self.execute_command(spec, id, params);
+            self.live_after();
+            return result;
+        }
+        self.execute_command(spec, id, params)
+    }
+
+    /// [`Session::execute`] once the command is known to be available.
+    fn execute_command(&mut self, spec: &'static CommandSpec, id: &str, params: Json) -> Result<Json> {
         // A debugger whose undo group something else ended locks nothing any more (`macro.debug`
         // itself says that the run had ended).
         if id != "macro.debug" {

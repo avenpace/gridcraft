@@ -48,6 +48,8 @@ pub struct Bridge {
     host: Rc<Host>,
     /// Names of the files handed to the host since the last frame.
     saved: Rc<RefCell<Vec<String>>>,
+    /// Clawku live co-editing ([`crate::live`]).
+    live: crate::live::LiveLink,
 }
 
 impl Bridge {
@@ -55,7 +57,7 @@ impl Bridge {
     /// `data-host="page"` on the canvas, an unframed `?host=parent` page (it stays the normal app
     /// with downloads), or a parent on another origin.
     pub fn detect(canvas: &web_sys::HtmlCanvasElement) -> Option<Self> {
-        Some(Self { host: Rc::new(Host::connect(APP, canvas)?), saved: Rc::default() })
+        Some(Self { host: Rc::new(Host::connect(APP, canvas)?), saved: Rc::default(), live: crate::live::LiveLink::default() })
     }
 
     /// Send saved and exported files to the host instead of downloading them, and hear files
@@ -90,6 +92,7 @@ impl Bridge {
     /// name it was saved as, and the host hears when unsaved changes appear or go away (the
     /// crate does not repeat a state it already reported).
     pub fn sync(&self, app: &mut SheetApp) {
+        self.live.sync(app);
         let saved = std::mem::take(&mut *self.saved.borrow_mut());
         if let Some(name) = saved.iter().rev().find(|name| is_workbook(name))
             && let Some(doc) = app.session.active_mut()
@@ -110,6 +113,7 @@ impl Bridge {
     }
 
     fn listen(&self, inbox: Inbox, ctx: egui::Context) {
+        self.live.listen(inbox.clone(), ctx.clone());
         self.host.listen(move |message| {
             if let Message::Open { name, data } = message {
                 deliver_open(&inbox, &ctx, &name, &data);

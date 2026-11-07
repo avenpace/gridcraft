@@ -22,6 +22,8 @@
 mod clawku_pick;
 #[cfg(target_arch = "wasm32")]
 mod host;
+#[cfg(target_arch = "wasm32")]
+mod live;
 #[cfg(any(target_arch = "wasm32", test))]
 mod hostmode;
 #[cfg(any(target_arch = "wasm32", test))]
