@@ -192,6 +192,10 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
     Services {
         copy_html: Some(Box::new(copy_html)),
         open_async: Some(Box::new(move || {
+            // Clawku: opening a workbook goes through the host page's storage browser
+            if crate::clawku_pick::host_pick("gridcraft", "document") {
+                return;
+            }
             let inbox = open_inbox.clone();
             let ctx = ctx.clone();
             wasm_bindgen_futures::spawn_local(async move {
