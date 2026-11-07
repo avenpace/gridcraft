@@ -123,7 +123,7 @@ impl Bridge {
 /// the app's memory (the data's own length, not the host's claim).
 fn deliver_open(inbox: &Inbox, ctx: &egui::Context, name: &str, data: &FileData) {
     let FileData::Bytes(array) = data else {
-        log::warn!("host file {name} came as a File; GridCraft reads bytes only; not opened");
+        log::warn!("host file {name} came as a File; ClawSheet reads bytes only; not opened");
         return;
     };
     if data.size() > MAX_OPEN_BYTES as f64 {

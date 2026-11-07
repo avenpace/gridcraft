@@ -206,7 +206,7 @@ pub fn set_many(wb: &mut Workbook, items: &[(String, String)]) -> Result<()> {
             return Err(EngineError::Other(format!("`{key}` is given twice.")));
         }
         for (i, formula) in chunk_formulas(text).into_iter().enumerate() {
-            planned.push(DefinedName { name: format!("{PREFIX}{key}_{i}"), scope: None, formula, comment: "GridCraft data".into(), hidden: true });
+            planned.push(DefinedName { name: format!("{PREFIX}{key}_{i}"), scope: None, formula, comment: "ClawSheet data".into(), hidden: true });
         }
     }
     // A visible name of an item's shape is someone's own (see `item_of`); a hidden name beside
@@ -214,7 +214,7 @@ pub fn set_many(wb: &mut Workbook, items: &[(String, String)]) -> Result<()> {
     let names: HashSet<String> = planned.iter().map(|n| n.name.to_ascii_lowercase()).collect();
     if let Some(n) = wb.names.iter().find(|n| n.scope.is_none() && !n.hidden && names.contains(&n.name.to_ascii_lowercase())) {
         return Err(EngineError::Other(format!(
-            "The workbook has a defined name '{}', which GridCraft needs for its own data. Rename it first.",
+            "The workbook has a defined name '{}', which ClawSheet needs for its own data. Rename it first.",
             n.name
         )));
     }

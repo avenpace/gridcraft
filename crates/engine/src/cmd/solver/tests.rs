@@ -221,7 +221,7 @@ fn answer_and_limits_reports_describe_the_wyndor_glass_solution() {
     assert_eq!(d.wb.active().unwrap().name, "Sheet1", "the model's sheet stays active");
     assert_eq!(saved(&s), "solver_opt", "the saved model follows its sheet");
     let a = "Answer Report 1";
-    assert_eq!(at(&s, a, "A1"), Value::text("GridCraft Answer Report"));
+    assert_eq!(at(&s, a, "A1"), Value::text("ClawSheet Answer Report"));
     // Objective: $D$6 "Profit Used", from 0 to 36.
     let r = row_of(&s, a, "$D$6");
     assert_eq!(at(&s, a, &format!("C{}", r + 1)), Value::text("Profit Used"));
@@ -435,7 +435,7 @@ fn sensitivity_report_gives_the_wyndor_glass_shadow_prices_and_ranges() {
         .unwrap();
     assert_eq!(solved["reports"], json!(["Sensitivity Report 1"]), "{solved}");
     let rep = "Sensitivity Report 1";
-    assert_eq!(at(&s, rep, "A1"), Value::text("GridCraft Sensitivity Report"));
+    assert_eq!(at(&s, rep, "A1"), Value::text("ClawSheet Sensitivity Report"));
     let r = row_of(&s, rep, "Reduced Cost");
     assert_eq!(at(&s, rep, &format!("F{}", r + 1)), Value::text("Objective Coefficient"));
     let cols = ["D", "E", "F", "G", "H"];

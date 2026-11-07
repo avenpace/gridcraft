@@ -137,7 +137,7 @@ fn save(s: &mut Session, p: &Json) -> Result<Json> {
 /// The refusal of a name that a macro kept in a newer format has.
 fn taken_by_kept(name: &str) -> String {
     format!(
-        "A macro called '{name}' made by a newer version of GridCraft is kept in this workbook; this version can't change it. Choose another name."
+        "A macro called '{name}' made by a newer version of ClawSheet is kept in this workbook; this version can't change it. Choose another name."
     )
 }
 

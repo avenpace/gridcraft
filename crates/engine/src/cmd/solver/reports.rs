@@ -97,7 +97,7 @@ pub(super) struct ReportInput<'a> {
 }
 
 pub(super) fn title(out: &mut Lines, kind: ReportKind, sheet: &str) -> u32 {
-    out.push((0, 0, Value::text(format!("GridCraft {} Report", kind.title())), true));
+    out.push((0, 0, Value::text(format!("ClawSheet {} Report", kind.title())), true));
     out.push((1, 0, Value::text(format!("Worksheet: {sheet}")), false));
     3
 }

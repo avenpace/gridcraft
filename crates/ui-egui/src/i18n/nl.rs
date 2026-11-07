@@ -475,7 +475,7 @@ pub(super) fn translate(text: &str) -> Option<&'static str> {
         "Hide Sheet" => "Blad verbergen",
         "Hierarchy & more" => "Hiërarchie en meer",
         "Highlighter" => "Markeerstift",
-        "How agents drive GridCraft (MCP / control channel)" => "Hoe agents GridCraft besturen (MCP / besturingskanaal)",
+        "How agents drive ClawSheet (MCP / control channel)" => "Hoe agents ClawSheet besturen (MCP / besturingskanaal)",
         "Import a text or CSV file" => "Een tekst- of CSV-bestand importeren",
         "Insert\nSlicer" => "Gegevensfilter\ninvoegen",
         "Insert Function (⇧F3)" => "Functie invoegen (⇧F3)",

@@ -35,7 +35,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Define Name…",
             ["Formulas", "Defined Names"],
             None,
-            "{name, refersTo?: \"=Sheet1!$A$1:$A$10\" (default: the selection), scope?: \"Workbook\"|sheet name, comment?, oldName?, oldScope?, force?: bool} (oldName: edit that name (Name Manager › Edit); a new name also renames it in formulas; a hidden name GridCraft keeps its own data in, `_gc_<key>_<n>` or `_sc_<key>`, is refused unless force is true)",
+            "{name, refersTo?: \"=Sheet1!$A$1:$A$10\" (default: the selection), scope?: \"Workbook\"|sheet name, comment?, oldName?, oldScope?, force?: bool} (oldName: edit that name (Name Manager › Edit); a new name also renames it in formulas; a hidden name ClawSheet keeps its own data in, `_gc_<key>_<n>` or `_sc_<key>`, is refused unless force is true)",
             has_doc,
             define_name
         ),
@@ -44,7 +44,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Delete Name",
             [],
             None,
-            "{name, scope?: \"Workbook\"|sheet name (default: every scope), force?: bool} (a hidden name GridCraft keeps its own data in, `_gc_<key>_<n>` or `_sc_<key>`, is refused unless force is true)",
+            "{name, scope?: \"Workbook\"|sheet name (default: every scope), force?: bool} (a hidden name ClawSheet keeps its own data in, `_gc_<key>_<n>` or `_sc_<key>`, is refused unless force is true)",
             has_doc,
             delete_name
         ),
@@ -54,7 +54,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Create from Selection",
             ["Formulas", "Defined Names"],
             Some("Cmd+Shift+F3"),
-            "{range?, top?: true, left?: false, bottom?: false, right?: false, replace?: false (existing names are kept and listed in `skipped`), force?: false (labels of the shape GridCraft keeps its own data in, `_gc_<key>_<n>` and `_sc_<key>`, are listed in `skipped` unless force is true)}",
+            "{range?, top?: true, left?: false, bottom?: false, right?: false, replace?: false (existing names are kept and listed in `skipped`), force?: false (labels of the shape ClawSheet keeps its own data in, `_gc_<key>_<n>` and `_sc_<key>`, are listed in `skipped` unless force is true)}",
             has_doc,
             create_from_selection
         ),
@@ -477,7 +477,7 @@ fn holds_gridcraft_data(wb: &Workbook, name: &str) -> bool {
 fn refuse_stash_name(wb: &Workbook, p: &Json, name: &str) -> Result<()> {
     if holds_gridcraft_data(wb, name) && !bool_param(p, "force").unwrap_or(false) {
         return Err(EngineError::Other(format!(
-            "'{name}' is a name GridCraft keeps its own data in (stored macros, scripts or views). Pass `force: true` to change it anyway."
+            "'{name}' is a name ClawSheet keeps its own data in (stored macros, scripts or views). Pass `force: true` to change it anyway."
         )));
     }
     Ok(())

@@ -53,7 +53,7 @@ pub(crate) fn invalid(msg: impl Into<String>) -> IoError {
 
 /// The message for an encrypted workbook (a FilePass record).
 const ENCRYPTED: &str =
-    "this .xls workbook is password-protected (encrypted). GridCraft can't open encrypted .xls files; remove the password in Excel and try again.";
+    "this .xls workbook is password-protected (encrypted). ClawSheet can't open encrypted .xls files; remove the password in Excel and try again.";
 
 /// Whether the bytes are a compound file holding an Excel workbook stream (BIFF8 `Workbook`
 /// or BIFF5 `Book`).
@@ -197,7 +197,7 @@ pub(crate) fn read_xls_with(bytes: &[u8], mut budget: Budget) -> Result<(Workboo
         wb.sheets.push(Arc::new(sheet));
     }
     if wb.sheets.is_empty() {
-        return Err(invalid("the workbook has no worksheets GridCraft can read"));
+        return Err(invalid("the workbook has no worksheets ClawSheet can read"));
     }
     wb.calc.precision_as_displayed = g.precision_as_displayed;
     defined_names(&g, &model_index, &mut wb, &mut report);
@@ -460,7 +460,7 @@ impl SheetState<'_> {
                 let text = gridcraft_formula::print(&e);
                 let mut f = Formula::new(&text);
                 if f.expr.is_none() {
-                    self.unsupported("syntax GridCraft can't parse yet");
+                    self.unsupported("syntax ClawSheet can't parse yet");
                     return;
                 }
                 f.array = array.filter(|r| !r.is_single());

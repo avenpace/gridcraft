@@ -370,7 +370,7 @@ pub(super) fn translate(text: &str) -> Option<&'static str> {
         "Options" => "选项",
         "Account" => "账户",
         "Product Information" => "产品信息",
-        "About GridCraft" => "关于 GridCraft",
+        "About ClawSheet" => "关于 ClawSheet",
         "Version" => "版本",
         "Platform" => "平台",
         "Licence" => "许可证",

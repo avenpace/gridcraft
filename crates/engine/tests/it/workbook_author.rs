@@ -34,7 +34,7 @@ fn opening_and_resaving_preserves_the_existing_workbook_author() {
     let (opened, _) = io::open_bytes("source.xlsx", &bytes).unwrap();
 
     let mut session = Session::new();
-    session.prefs.user_name = "Current GridCraft User".into();
+    session.prefs.user_name = "Current ClawSheet User".into();
 
     session.add_document(DocState::new(opened, None, "source".into(), Trust::FromFile));
 

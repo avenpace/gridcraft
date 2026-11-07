@@ -105,7 +105,7 @@ pub fn check_room(wb: &Workbook) -> Result<(), String> {
     Err(match wb.macros_unread.len() {
         0 => format!("A workbook can hold at most {max} macros."),
         kept => format!(
-            "A workbook can hold at most {max} macros, and {kept} of the {} in this one {} made by a newer version of GridCraft and kept unchanged.",
+            "A workbook can hold at most {max} macros, and {kept} of the {} in this one {} made by a newer version of ClawSheet and kept unchanged.",
             count(wb),
             if kept == 1 { "was" } else { "were" }
         ),
@@ -320,7 +320,7 @@ pub fn load(wb: &mut Workbook) -> Vec<String> {
     if !unread.is_empty() {
         let one = unread.len() == 1;
         warnings.push(format!(
-            "{} macro{} in the workbook {} made by a newer version of GridCraft: this version can't show or run {}, and saving keeps {} unchanged.",
+            "{} macro{} in the workbook {} made by a newer version of ClawSheet: this version can't show or run {}, and saving keeps {} unchanged.",
             unread.len(),
             if one { "" } else { "s" },
             if one { "was" } else { "were" },
@@ -480,7 +480,7 @@ pub fn check_new_name(wb: &Workbook, name: &str) -> Result<String, String> {
         return Err(format!("A macro called “{name}” already exists. Choose another name."));
     }
     if let Some(kept) = kept_name(wb, name) {
-        return Err(format!("A macro called “{kept}” is kept from a newer version of GridCraft. Choose another name."));
+        return Err(format!("A macro called “{kept}” is kept from a newer version of ClawSheet. Choose another name."));
     }
     Ok(name.to_string())
 }

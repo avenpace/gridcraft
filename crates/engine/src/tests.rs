@@ -2023,7 +2023,7 @@ fn inserting_a_column_next_to_far_right_data_names_gridcraft_in_the_refusal() {
     let mut sess = s();
     sess.execute("cell.set", json!({"cell": "XFD1", "input": "2"})).unwrap();
     let e = sess.execute("home.insertColumns", json!({"cols": "A:A"})).unwrap_err();
-    assert!(e.to_string().contains("GridCraft cannot shift nonblank cells"), "{e}");
+    assert!(e.to_string().contains("ClawSheet cannot shift nonblank cells"), "{e}");
     assert!(!e.to_string().contains("Excel"), "{e}");
 }
 
@@ -2035,7 +2035,7 @@ fn inserting_cells_refuses_to_push_values_off_the_sheet() {
         sess.execute("cell.set", json!({"cell": edge, "input": "2"})).unwrap();
         let e = sess.execute("home.insertCells", json!({"range": "A1", "shift": shift})).unwrap_err();
         assert!(e.to_string().contains("loss of data"), "{e}");
-        assert!(e.to_string().contains("GridCraft") && !e.to_string().contains("Excel"), "{e}");
+        assert!(e.to_string().contains("ClawSheet") && !e.to_string().contains("Excel"), "{e}");
         assert_eq!(v(&sess, "A1"), Value::Number(1.0));
         assert_eq!(v(&sess, edge), Value::Number(2.0));
         // A value that still fits moves to the last valid cell.

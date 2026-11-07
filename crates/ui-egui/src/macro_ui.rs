@@ -507,7 +507,7 @@ pub fn macros_dialog(app: &mut SheetApp, ui: &mut Ui, d: &mut Dialog, open: &mut
     if vba {
         ui.add_space(6.0);
         ui.label(
-            egui::RichText::new("This workbook also has a VBA project. GridCraft keeps it when you save but does not run it.").color(t.text_dim),
+            egui::RichText::new("This workbook also has a VBA project. ClawSheet keeps it when you save but does not run it.").color(t.text_dim),
         );
     }
     d.values.insert("name".into(), json!(name));

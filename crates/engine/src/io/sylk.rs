@@ -157,7 +157,7 @@ pub fn read(name: &str, bytes: &[u8]) -> Result<(Workbook, Vec<String>)> {
     }
     let mut warnings = Vec::new();
     if skipped > 0 {
-        warnings.push(format!("{name}: {skipped} SYLK records GridCraft couldn't read were skipped"));
+        warnings.push(format!("{name}: {skipped} SYLK records ClawSheet couldn't read were skipped"));
     }
     Ok((wb, warnings))
 }

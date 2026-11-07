@@ -374,7 +374,7 @@ pub(super) fn translate(text: &str) -> Option<&'static str> {
         "Options" => "Параметры",
         "Account" => "Учетная запись",
         "Product Information" => "Сведения о продукте",
-        "About GridCraft" => "О программе GridCraft",
+        "About ClawSheet" => "О программе ClawSheet",
         "Version" => "Версия",
         "Platform" => "Платформа",
         "Licence" => "Лицензия",

@@ -33,7 +33,7 @@
    "seq": "JI",
    "kind": "tab",
    "target": "Draw",
-   "note": "Two-letter unit. Deeper Draw letters differ between Excel and GridCraft; left blank for future contributors."
+   "note": "Two-letter unit. Deeper Draw letters differ between Excel and ClawSheet; left blank for future contributors."
   },
   {
    "seq": "P",
@@ -246,7 +246,7 @@
    "target": "home.eraseBorder",
    "pending": true,
    "excel": "Erase Border",
-   "note": "pending: Excel arms an eraser pen; GridCraft has no border pen mode yet"
+   "note": "pending: Excel arms an eraser pen; ClawSheet has no border pen mode yet"
   },
   {
    "seq": "HBG",
@@ -281,7 +281,7 @@
     "preset": "inside"
    },
    "excel": "(none)",
-   "note": "Borders menu item GridCraft adds (Excel's menu has no Inside Borders); J is free under HB"
+   "note": "Borders menu item ClawSheet adds (Excel's menu has no Inside Borders); J is free under HB"
   },
   {
    "seq": "HBL",

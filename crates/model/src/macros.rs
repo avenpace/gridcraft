@@ -288,7 +288,7 @@ impl FromIterator<Macro> for Macros {
 /// doesn't know, and a save would then write the rest back as if it were the whole macro.
 pub fn check_version(v: u64) -> Result<(), String> {
     if v > u64::from(MACRO_VERSION) {
-        return Err(format!("This macro was made by a newer version of GridCraft (macro format {v}); this version reads format {MACRO_VERSION}."));
+        return Err(format!("This macro was made by a newer version of ClawSheet (macro format {v}); this version reads format {MACRO_VERSION}."));
     }
     Ok(())
 }
