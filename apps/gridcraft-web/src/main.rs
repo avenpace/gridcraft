@@ -14,10 +14,13 @@
 //! own document (no iframe) with `data-host="page"` on the canvas, talking over DOM `CustomEvent`s
 //! on the canvas. `&author=` names the user for notes and comments in either host mode.
 //! `?chrome=none|notitlebar|nofiletab` leaves the title bar and/or the File tab undrawn for a host
-//! that embeds the sheet in its own window (see `Chrome`). Preferences (theme, interface size,
-//! editing options…) are kept in `localStorage` (`prefs`).
+//! that embeds the sheet in its own window (see `Chrome`). `?control` installs `window.gridcraft`,
+//! the page's command API over the same JSON control methods as the desktop (`api`). Preferences
+//! (theme, interface size, editing options…) are kept in `localStorage` (`prefs`).
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+#[cfg(target_arch = "wasm32")]
+mod api;
 #[cfg(target_arch = "wasm32")]
 mod clawku_pick;
 #[cfg(target_arch = "wasm32")]

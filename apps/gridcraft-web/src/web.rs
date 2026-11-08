@@ -99,6 +99,17 @@ pub fn start() {
                         }
                         bridge.post_ready();
                     }
+                    // `?control`: `window.gridcraft`, the page's command API (crate::api), opt-in.
+                    // Its requests ride the app's own control channel: `rx` is `control_rx`, which
+                    // the app drains every frame (`control::poll`), as the desktop server's do.
+                    if control(&query()) {
+                        let (tx, rx) = std::sync::mpsc::channel();
+                        crate::api::connect(cc.egui_ctx.clone(), tx);
+                        app.control_rx = Some(rx);
+                        if let Err(e) = crate::api::install() {
+                            log::error!("couldn't install window.gridcraft: {e:?}");
+                        }
+                    }
                     Ok(Box::new(WebShell { app, inbox, bridge: app_bridge, prefs }))
                 }),
             )
@@ -117,6 +128,13 @@ pub fn start() {
 
 fn query() -> String {
     web_sys::window().and_then(|w| w.location().search().ok()).unwrap_or_default()
+}
+
+/// Whether `search` (`location.search`, with or without its `?`) has a `control` entry (`?control`,
+/// or `?control=…` with any value): the page's command API, `window.gridcraft`, is installed only
+/// when it is asked for.
+fn control(search: &str) -> bool {
+    search.strip_prefix('?').unwrap_or(search).split('&').any(|entry| entry.split('=').next() == Some("control"))
 }
 
 fn query_param(key: &str) -> Option<String> {

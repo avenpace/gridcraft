@@ -23,6 +23,9 @@ log = { workspace = true }
 serde_json = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+# The page command API, `window.gridcraft` (`?control`), from the same pinned craft-libs as
+# craft-web-host above.
+craft-web-api = { git = "https://github.com/storytold/craft-libs", rev = "2e2312ddaf21bc3d85cd3395d0955c7d239306f6", version = "0.1.0" }
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit"] }
 rfd = { workspace = true }
 wasm-bindgen = "0.2"
