@@ -180,6 +180,8 @@ impl eframe::App for WebShell {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.app.ui(ui);
+        // Phones and tablets: the on-screen keyboard comes up while a cell draft is open
+        gridcraft_ui_egui::mobile_text::report(&self.app, ui.ctx());
         if let Some(bridge) = &self.bridge {
             bridge.sync(&mut self.app);
         }
