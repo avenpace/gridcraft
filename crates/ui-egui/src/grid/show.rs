@@ -28,6 +28,10 @@ pub fn show(app: &mut SheetApp, ui: &mut egui::Ui) {
     };
     let resp = ui.allocate_rect(rect, Sense::click_and_drag());
     app.grid.rect = Some(rect);
+    // Fingers coming down here scroll the sheet, on the headings and rulers too; not on the
+    // scroll bar, which a finger drags as a mouse does (`crate::touch`).
+    app.grid.touch_area = Some((rect, ui.layer_id()));
+    pinch_zoom(app, ui);
     let Some(d) = app.session.active() else { return };
     let wb: Arc<Workbook> = d.wb.clone();
     let si = wb.active_sheet();
@@ -56,8 +60,10 @@ pub fn show(app: &mut SheetApp, ui: &mut egui::Ui) {
     };
     // Scrolling.
     let (scroll_delta, zoom_delta, modifiers, now) = ui.input(|i| (i.smooth_scroll_delta, i.zoom_delta(), i.modifiers, i.time));
+    // Two fingers zoom in `pinch_zoom` instead, about the point between them.
+    let fingers = ui.input(|i| i.multi_touch().is_some());
     if (resp.hovered() || resp.contains_pointer()) && !crate::text_box::contains_pointer(app, ui.ctx()) {
-        if zoom_delta != 1.0 {
+        if zoom_delta != 1.0 && !fingers {
             // egui's zoom factor is e^(speed × points); one notch is `line_scroll_speed` points.
             let notch = ui.ctx().options(|o| o.input_options.scroll_zoom_speed * o.input_options.line_scroll_speed);
             let turned = zoom_delta.ln() / notch;
@@ -100,9 +106,25 @@ pub fn show(app: &mut SheetApp, ui: &mut egui::Ui) {
             view.scroll -= d / z;
         }
     }
-    // A one-finger touch drag pans the sheet, the content following the finger; it doesn't select.
-    // (Two fingers pinch-zoom through `zoom_delta` above.)
-    if resp.drag_started() && ui.input(|i| i.any_touches()) {
+    // Fingers (`crate::touch`): one dragged across the grid moves the sheet with it, 1:1 along
+    // both axes, and it coasts on after the finger lifts; two pan it while they pinch. The press
+    // never reached egui, so nothing is selected or dragged.
+    let pan =
+        if app.touch.pinching_canvas() { ui.input(|i| i.multi_touch().map_or(egui::Vec2::ZERO, |t| t.translation_delta)) } else { egui::Vec2::ZERO };
+    let finger = app.touch.take_scroll(crate::touch::Target::Canvas) + pan;
+    let before_finger = view.scroll;
+    let finger = if finger.is_finite() { finger } else { egui::Vec2::ZERO };
+    if finger != egui::Vec2::ZERO {
+        let z = if paper { make_geo(app, view.scroll).z } else { sh.zoom as f32 / 100.0 * DISPLAY_SCALE };
+        let mut d = finger;
+        if sh.right_to_left {
+            d.x = -d.x;
+        }
+        view.scroll -= d / z;
+    }
+    // A touch that bypassed the filter (a host or harness running `ui` without the raw input
+    // hook) still pans rather than selects, the content following the finger.
+    if !app.touch.engaged() && resp.drag_started() && ui.input(|i| i.any_touches()) {
         app.grid.touch_pan = true;
     }
     if app.grid.touch_pan && resp.dragged() && ui.input(|i| i.multi_touch().is_none()) {
@@ -128,6 +150,10 @@ pub fn show(app: &mut SheetApp, ui: &mut egui::Ui) {
     }
     view.scroll.x = view.scroll.x.min(max_x);
     view.scroll.y = view.scroll.y.min(max_y);
+    if finger != egui::Vec2::ZERO && view.scroll == before_finger {
+        // Scrolled into the sheet's top/left (or far) end: the coast stops there.
+        app.touch.hit_edge();
+    }
     let mut geo = make_geo(app, view.scroll);
     // Keep the active cell (or the moving end of an extension) visible after keyboard moves.
     ActiveCellVisibility { app, wb: &wb, si, sh, selection: &sel, paper, make_geo: &make_geo }.update(&mut view, &mut geo);
@@ -211,6 +237,48 @@ pub fn show(app: &mut SheetApp, ui: &mut egui::Ui) {
     ui.painter().rect_filled(Rect::from_min_max(pos2(track_x.0, rect.top()), pos2(track_x.1, rect.bottom())), 0.0, t.tab_bar);
     vertical_scrollbar(app, ui, sh, &geo, track_x, max_y, &t);
     update_clipboard_repaint(app, ui, now);
+}
+
+/// Two fingers on the grid zoom it about the point between them (`crate::touch`), smoothly in
+/// whole percents, before this frame lays the sheet out at its zoom. The cell under the pinch
+/// centre stays under it (in Normal view; in Page Layout and over frozen panes roughly so).
+fn pinch_zoom(app: &mut SheetApp, ui: &egui::Ui) {
+    let pinch = if app.touch.pinching_canvas() { ui.input(|i| i.multi_touch()) } else { None };
+    let Some(pinch) = pinch else {
+        app.grid.pinch_zoom = None;
+        return;
+    };
+    let Some(old) = app.session.active().and_then(|d| d.wb.active()).map(|s| s.zoom) else { return };
+    let wanted = app.grid.pinch_zoom.unwrap_or(f32::from(old)) * pinch.zoom_delta;
+    if !wanted.is_finite() {
+        return;
+    }
+    let wanted = wanted.clamp(10.0, 400.0);
+    app.grid.pinch_zoom = Some(wanted);
+    let new = wanted.round() as u16;
+    if new == old || old == 0 {
+        return;
+    }
+    app.grid.wheel_zoom = None;
+    let from = Trace::key(app);
+    if app.session.run("view.zoom", json!({"percent": new})).is_err() {
+        return;
+    }
+    Trace::keep_through_zoom(app, from);
+    let Some(geo) = app.grid.geo.clone() else { return };
+    let Some(wb) = app.session.active().map(|d| d.wb.clone()) else { return };
+    let Some(sh) = wb.active() else { return };
+    if let Some(v) = app.view_mut() {
+        // Content point p = scroll + (c − o)/z stays at c: scroll' = p − (c − o')/z', where the
+        // origin o of the scrolled cells moves as the headings grow or shrink with the zoom.
+        let origin = |g: &Geo| g.cells.min + vec2(g.frozen_w, g.frozen_h);
+        let after = Geo::new(sh, geo.rect, v.scroll);
+        let c = geo.mirror_pos(pinch.center_pos);
+        let shift = (c - origin(&geo)) / geo.z - (c - origin(&after)) / after.z;
+        if shift.is_finite() {
+            v.scroll = (v.scroll + shift).max(egui::Vec2::ZERO);
+        }
+    }
 }
 
 /// The vertical scroll bar's width: none when the workbook hides it (File › Options ›

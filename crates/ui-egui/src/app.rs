@@ -8,7 +8,7 @@ use super::updates_ui;
 use super::{
     CellRef, HashMap, INTERFACE_SCALE_MAX, INTERFACE_SCALE_MIN, Json, Notice, Perf, RangeRef, Session, SheetApp, UiRequest, UiState, backstage,
     clamp_interface_scale, clean_error, control, desktop_theme, dialogs, editor, floating_pictures, formula_bar, formula_locale, grid, i18n, json,
-    keytips, macro_ui, panes, pivot_pane, printing, ribbon, tabs, text_box, theme, widgets,
+    keytips, macro_ui, panes, pivot_pane, printing, ribbon, tabs, text_box, theme, touch, widgets,
 };
 
 mod clipboard;
@@ -46,6 +46,7 @@ impl SheetApp {
             synthetic: Default::default(),
             synthetic_pending: false,
             synthetic_injected_at_pass: None,
+            touch: Default::default(),
             control_rx: None,
             grid: grid::GridState {
                 last_border: "bottom".into(),
@@ -195,6 +196,16 @@ impl SheetApp {
             return;
         }
         let t0 = now_ms();
+        // A finger dragging in a text field scrolls the scroll area around it, 1:1 (`touch`).
+        let field = self.touch.take_scroll(touch::Target::Field);
+        if field != egui::Vec2::ZERO {
+            ctx.input_mut(|i| i.smooth_scroll_delta += field);
+        }
+        if let Some(after) = self.touch.repaint_after() {
+            ctx.request_repaint_after(after);
+        }
+        // The grid says where it is when it is drawn; elsewhere (Backstage) fingers aren't on it.
+        self.grid.touch_area = None;
         // A script may have switched windows since the last frame.
         self.follow_active_window();
         // This window's key tip request that waited for this frame (its tab or ribbon was just

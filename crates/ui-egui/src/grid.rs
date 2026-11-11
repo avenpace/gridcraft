@@ -314,8 +314,15 @@ pub struct GridState {
     pub tab_shares: std::collections::HashMap<u64, f32>,
     /// Ctrl+wheel zoom in progress (see [`WheelZoom`]).
     pub wheel_zoom: Option<WheelZoom>,
-    /// A one-finger touch drag in progress: it pans the sheet instead of selecting.
+    /// A one-finger touch drag in progress that bypassed [`crate::touch`] (a host or harness that
+    /// drives `ui` without the raw input hook): it pans the sheet instead of selecting.
     pub touch_pan: bool,
+    /// Where a finger coming down is on the grid ([`crate::touch`]): the grid with its headings
+    /// and rulers, less the scroll bar, on this layer. Set while the grid is drawn, else None.
+    pub touch_area: Option<(Rect, egui::LayerId)>,
+    /// A two-finger pinch's zoom (percent) before rounding to the sheet's whole percent, so slow
+    /// pinches add up. None between pinches.
+    pub pinch_zoom: Option<f32>,
     /// What the macro step editor shows on the grid (Check, debugging).
     pub macro_overlay: Option<crate::macro_editor::MacroOverlay>,
 }

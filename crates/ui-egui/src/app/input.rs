@@ -10,6 +10,13 @@ impl SheetApp {
         let geometry = control::CaptureGeometry::from_raw_input(raw, ctx);
         control::note_capture_geometry(self, geometry);
         self.capture_geometry_from_raw = true;
+        // Fingers: a drag scrolls the grid or a text field instead of selecting (`touch`). The
+        // control channel's input, added below, is a mouse's and passes as it is.
+        if raw.viewport_id == egui::ViewportId::ROOT {
+            let grid = self.grid.touch_area;
+            let on_grid = |p: egui::Pos2| grid.is_some_and(|(rect, layer)| rect.contains(p) && ctx.layer_id_at(p).is_none_or(|l| l == layer));
+            self.touch.filter(raw, on_grid, || crate::touch::field_hovered(ctx));
+        }
         // One unapplied gesture step at a time. eframe retains an unconsumed `RawInput` for the
         // next pass and for a hidden logic-only tick, so the batch is offered once and survives
         // until a `ui` pass applies it (which pops it). Press and release stay distinct batches.

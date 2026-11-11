@@ -55,6 +55,7 @@ pub mod selection_glide;
 pub mod tabs;
 pub mod text_box;
 pub mod theme;
+pub mod touch;
 #[cfg(not(target_arch = "wasm32"))]
 mod updates_ui;
 pub mod widgets;
@@ -247,6 +248,8 @@ pub struct SheetApp {
     /// did not apply it (the font gate's early return) consumed the events with `begin_pass`
     /// without reaching input handling, so the hook must offer the same step again.
     pub(crate) synthetic_injected_at_pass: Option<u64>,
+    /// Fingers on a touch screen: drag scrolls, tap clicks, long press then drag selects.
+    pub(crate) touch: touch::TouchGesture,
     pub control_rx: Option<std::sync::mpsc::Receiver<ControlRequest>>,
     pub grid: grid::GridState,
     pub perf: Perf,
