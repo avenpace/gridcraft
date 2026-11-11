@@ -25,11 +25,15 @@ pub(super) fn options(app: &mut SheetApp, ui: &mut Ui) {
     if ui.checkbox(&mut autocomplete, lang.tr("Enable AutoComplete for cell values")).changed() {
         app.run_or_alert("options.autoComplete", json!({"on": autocomplete}));
     }
-    ui.add_space(18.0);
-    section(ui, lang, "Options|Save");
-    let mut autosave = app.ui.autosave;
-    if ui.checkbox(&mut autosave, lang.tr("Save .xlsx workbooks automatically after every change")).changed() {
-        app.toggle_autosave();
+    // AutoSave saves workbooks that have a file on disk; the browser has none, so the web build
+    // doesn't offer it.
+    if !cfg!(target_arch = "wasm32") {
+        ui.add_space(18.0);
+        section(ui, lang, "Options|Save");
+        let mut autosave = app.ui.autosave;
+        if ui.checkbox(&mut autosave, lang.tr("Save .xlsx workbooks automatically after every change")).changed() {
+            app.toggle_autosave();
+        }
     }
     let Some((calc, view)) = app.session.active().map(|d| (d.wb.calc.clone(), d.wb.view)) else { return };
     ui.add_space(18.0);

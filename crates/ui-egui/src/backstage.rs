@@ -83,6 +83,12 @@ impl Page {
         }
     }
 
+    /// Hosted (Clawku): the page owns New, the recent files and the account, so these pages are
+    /// not offered.
+    pub fn hosted_hidden(self) -> bool {
+        matches!(self, Page::Home | Page::New | Page::Account)
+    }
+
     fn icon(self) -> Icon {
         match self {
             Page::Home => Icon::Home,
@@ -161,6 +167,10 @@ struct Outcome {
 /// Draws the Backstage view in place of the ribbon, formula bar, grid and sheet tabs.
 pub fn show(app: &mut SheetApp, ui: &mut Ui) {
     let Some(mut bs) = app.backstage.take() else { return };
+    let hosted = app.hosted();
+    if hosted && bs.page.hosted_hidden() {
+        bs.page = Page::Info;
+    }
     let ctx = ui.ctx().clone();
     // Esc inside a text field leaves the field; it closes the view only from outside one.
     let typing = bs.text_edit_focused;
@@ -180,6 +190,9 @@ pub fn show(app: &mut SheetApp, ui: &mut Ui) {
             }
             ui.add_space(10.0);
             for page in [Page::Home, Page::New, Page::Open] {
+                if hosted && page.hosted_hidden() {
+                    continue;
+                }
                 if nav_item(ui, page.icon(), lang.tr(page.label()), bs.page == page, nav_text, nav_sel).clicked() {
                     out.page = Some(page);
                 }
@@ -196,7 +209,8 @@ pub fn show(app: &mut SheetApp, ui: &mut Ui) {
                     out.page = Some(page);
                 }
             }
-            if nav_item(ui, Icon::Close, lang.tr("Close"), false, nav_text, nav_sel).clicked() {
+            // Hosted: the page closes the workbook.
+            if !hosted && nav_item(ui, Icon::Close, lang.tr("Close"), false, nav_text, nav_sel).clicked() {
                 // A cell still being edited is part of the workbook; Close keeps the unsaved prompt.
                 if app.commit_edit(0, 0, false, false) {
                     app.run_or_alert("file.close", json!({}));
@@ -206,6 +220,9 @@ pub fn show(app: &mut SheetApp, ui: &mut Ui) {
             // Bottom up: Account sits just above Options, as in Excel.
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
                 for page in [Page::Options, Page::Account] {
+                    if hosted && page.hosted_hidden() {
+                        continue;
+                    }
                     if nav_item(ui, page.icon(), lang.tr(page.label()), bs.page == page, nav_text, nav_sel).clicked() {
                         out.page = Some(page);
                     }
@@ -253,12 +270,13 @@ pub fn show(app: &mut SheetApp, ui: &mut Ui) {
 }
 
 /// Save: saves a workbook that has a file and returns to the sheet; a new workbook goes to the
-/// Save As page first, like Excel's.
+/// Save As page first, like Excel's. Hosted, the workbook is the page's file: it is saved there
+/// under its own name at once.
 fn save(app: &mut SheetApp, out: &mut Outcome) {
     if !app.commit_edit(0, 0, false, false) {
         return;
     }
-    if app.session.active().is_some_and(|d| d.path.is_some()) {
+    if app.session.active().is_some_and(|d| d.path.is_some()) || app.services.host_save.is_some() {
         app.run_or_alert("file.save", json!({}));
         out.close = true;
     } else {
@@ -581,6 +599,10 @@ fn open_page(app: &mut SheetApp, ui: &mut Ui, bs: &mut Backstage, out: &mut Outc
             out.close = true;
         }
     }
+    // Hosted: the page lists its own files.
+    if app.hosted() {
+        return;
+    }
     ui.add_space(22.0);
     section(ui, lang, "Recent");
     recent_list(app, ui, bs, out, usize::MAX);
@@ -610,6 +632,8 @@ fn info(app: &mut SheetApp, ui: &mut Ui, bs: &mut Backstage) {
     };
     let title = d.display_title();
     let path = d.path.clone();
+    // Hosted: the workbook is the page's file, known by its name; there is no folder to show.
+    let hosted = app.hosted();
     let sheets = d.wb.sheets.len();
     let protected = d.wb.protected_structure;
     let current: Vec<String> = {
@@ -623,6 +647,7 @@ fn info(app: &mut SheetApp, ui: &mut Ui, bs: &mut Backstage) {
             ui.label(RichText::new(&title).font(theme::ui_bold(16.0)).color(t.text));
             match &path {
                 Some(p) => dim(ui, p),
+                None if hosted => {}
                 None => dim(ui, lang.tr("Not saved yet")),
             }
         });
@@ -647,9 +672,11 @@ fn info(app: &mut SheetApp, ui: &mut Ui, bs: &mut Backstage) {
     ui.add_space(22.0);
     section(ui, lang, "Properties");
     egui::Grid::new("backstage_props").num_columns(2).spacing(vec2(18.0, 8.0)).show(ui, |ui| {
-        ui.label(RichText::new(lang.tr("Location")).color(t.text_dim));
-        ui.label(path.as_deref().unwrap_or(lang.tr("Not saved yet")));
-        ui.end_row();
+        if !hosted {
+            ui.label(RichText::new(lang.tr("Location")).color(t.text_dim));
+            ui.label(path.as_deref().unwrap_or(lang.tr("Not saved yet")));
+            ui.end_row();
+        }
         ui.label(RichText::new(lang.tr("Sheets")).color(t.text_dim));
         ui.label(sheets.to_string());
         ui.end_row();
@@ -675,7 +702,8 @@ fn info(app: &mut SheetApp, ui: &mut Ui, bs: &mut Backstage) {
 /// Draws the Save As type picker and action: xlsx opens the `saveAs` dialog, other types export, and the page closes when the save/export succeeds (or a web download handles it).
 fn save_as(app: &mut SheetApp, ui: &mut Ui, bs: &mut Backstage, out: &mut Outcome) {
     let lang = app.ui.language;
-    dim(ui, lang.tr("Save the workbook under another name or in another folder."));
+    let hosted = app.services.host_save.is_some();
+    dim(ui, lang.tr(if hosted { "Save the workbook under another name." } else { "Save the workbook under another name or in another folder." }));
     ui.add_space(14.0);
     let fmt = bs.save_format;
     let current = SAVE_TYPES.iter().find(|(ext, _)| *ext == fmt).map_or("Excel Workbook (*.xlsx)", |(_, label)| *label);
@@ -695,9 +723,16 @@ fn save_as(app: &mut SheetApp, ui: &mut Ui, bs: &mut Backstage, out: &mut Outcom
             .labelled_by(label.id);
     });
     ui.add_space(14.0);
-    // Desktop: the system Save dialog. Web: the file downloads.
+    // Desktop: the system Save dialog. Web: the file downloads. Hosted: the page stores it (and
+    // asks for the workbook's new name itself).
     let web = app.services.pick_save.is_none() && app.services.download.is_some();
-    let label = if web { format!("{} (.{fmt})", lang.tr("Download")) } else { lang.tr("Browse…").to_string() };
+    let label = if hosted {
+        format!("{} (.{fmt})", lang.tr("Save As"))
+    } else if web {
+        format!("{} (.{fmt})", lang.tr("Download"))
+    } else {
+        lang.tr("Browse…").to_string()
+    };
     if square_button(ui, Icon::OpenFolder, &label).clicked() && app.commit_edit(0, 0, false, false) {
         if fmt == "xlsx" {
             let before = app.session.active().map(|d| (d.path.clone(), d.is_dirty()));
@@ -777,7 +812,8 @@ pub fn export_as(app: &mut SheetApp, fmt: &str) -> bool {
     match app.session.run("file.saveBytes", json!({"format": fmt})) {
         Ok(r) => {
             let bytes = r.get("base64").and_then(Json::as_str).and_then(gridcraft_engine::io::base64_decode);
-            let name = r.get("name").and_then(Json::as_str).map_or_else(|| format!("{stem}.{fmt}"), str::to_string);
+            // A copy, never the workbook's own name: a hosting page stores it as a new file.
+            let name = app.copy_name(fmt);
             match (bytes, &app.services.download) {
                 (Some(b), Some(dl)) => {
                     dl(&name, &b);
@@ -790,6 +826,35 @@ pub fn export_as(app: &mut SheetApp, fmt: &str) -> bool {
             app.message = Some(("ClawSheet".into(), crate::clean_error(&e)));
             false
         }
+    }
+}
+
+/// Save a Copy / Export as CSV / Export as Web Page on the web (no save picker): the copy
+/// downloads at once, or goes to the hosting page as a new file next to the workbook. An `xlsx`
+/// copy leaves the workbook's own file and unsaved state alone.
+pub fn save_copy(app: &mut SheetApp, fmt: &str) -> bool {
+    if fmt != "xlsx" {
+        return export_as(app, fmt);
+    }
+    if !app.commit_edit(0, 0, false, false) {
+        return false;
+    }
+    app.store_view_state();
+    let name = app.copy_name("xlsx");
+    let bytes = match app.session.active().map(|d| gridcraft_engine::io::save_bytes(&d.wb, &name)) {
+        Some(Ok(b)) => b,
+        Some(Err(e)) => {
+            app.message = Some(("ClawSheet".into(), crate::clean_error(&e.to_string())));
+            return false;
+        }
+        None => return false,
+    };
+    match &app.services.download {
+        Some(dl) => {
+            dl(&name, &bytes);
+            true
+        }
+        None => false,
     }
 }
 

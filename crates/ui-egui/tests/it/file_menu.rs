@@ -715,3 +715,26 @@ fn control_requests_route_to_a_window_and_list_windows() {
     let r = call(&mut h, "engine.execute", serde_json::json!({"command": "cell.get", "params": {"cell": "A1"}, "window": 999}));
     assert_eq!(r["ok"], false, "{r}");
 }
+
+#[test]
+fn web_share_menu_copies_download_instead_of_asking_for_a_path() {
+    // The web build has no file system: Save a Copy / Export as CSV / Web Page download at once.
+    let files = Arc::new(Mutex::new(Vec::<(String, Vec<u8>)>::new()));
+    let capture = files.clone();
+    let mut h = harness(Services {
+        download: Some(Box::new(move |name, bytes| capture.lock().unwrap().push((name.to_string(), bytes.to_vec())))),
+        ..Default::default()
+    });
+    h.state_mut().run("cell.set", serde_json::json!({"cell": "A1", "input": "7"})).unwrap();
+    for fmt in ["xlsx", "csv", "html"] {
+        h.state_mut().open_dialog("saveCopy", serde_json::json!({"format": fmt}));
+        h.run_steps(2);
+        assert!(h.state().dialog.is_none(), "no path prompt for .{fmt}");
+    }
+    let got = files.lock().unwrap();
+    let names: Vec<&str> = got.iter().map(|f| f.0.as_str()).collect();
+    assert_eq!(names, ["Book1.xlsx", "Book1.csv", "Book1.html"]);
+    let (wb, _) = gridcraft_engine::io::open_bytes("Book1.xlsx", &got[0].1).unwrap();
+    assert_eq!(wb.active().unwrap().value(CellRef::new(0, 0)), Value::Number(7.0));
+    assert!(h.state().session.active().unwrap().is_dirty(), "a copy leaves the workbook unsaved");
+}

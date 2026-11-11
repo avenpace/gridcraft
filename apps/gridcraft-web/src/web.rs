@@ -209,6 +209,7 @@ impl eframe::App for WebShell {
 fn services(inbox: Inbox, ctx: egui::Context) -> Services {
     let open_inbox = inbox.clone();
     let picture_ctx = ctx.clone();
+    let import_ctx = ctx.clone();
     Services {
         copy_html: Some(Box::new(copy_html)),
         open_async: Some(Box::new(move || {
@@ -235,6 +236,19 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
             let ctx = picture_ctx.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 let Some(file) = rfd::AsyncFileDialog::new().add_filter("Pictures (PNG, JPEG)", &["png", "jpg", "jpeg"]).pick_file().await else {
+                    return;
+                };
+                let bytes = file.read().await;
+                inbox.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push((file.file_name(), bytes));
+                ctx.request_repaint();
+            });
+        })),
+        // Data › Get Data: always the browser's own picker (also when hosted: the host's file
+        // list opens workbooks); the file is imported into the active workbook as a new sheet.
+        pick_import_async: Some(Box::new(move |inbox| {
+            let ctx = import_ctx.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let Some(file) = rfd::AsyncFileDialog::new().add_filter("Text and CSV", &["csv", "tsv", "txt", "json"]).pick_file().await else {
                     return;
                 };
                 let bytes = file.read().await;

@@ -17,6 +17,15 @@ impl SheetApp {
     }
 
     pub(super) fn run_command(&mut self, id: &str, params: Json) -> Result<Json, String> {
+        // Hosted: Save and Save As hand the workbook to the page (`<app>:save`) under its own
+        // name, with no Save As page or download on the way.
+        if matches!(id, "file.save" | "file.saveAs")
+            && self.services.host_save.is_some()
+            && params.get("path").and_then(Json::as_str).is_none_or(str::is_empty)
+        {
+            self.host_save_workbook(id == "file.saveAs")?;
+            return Ok(json!({"saved": true, "host": true}));
+        }
         let switches_window = id.starts_with("window.")
             || matches!(id, "view.newWindow" | "view.hideWindow" | "view.unhideWindow")
             || (id == "view.switchWindows" && ["window", "doc"].iter().any(|k| params.get(*k).is_some_and(|d| !d.is_null())));
@@ -100,6 +109,10 @@ impl SheetApp {
     }
 
     pub fn run_or_alert(&mut self, id: &str, params: Json) {
+        // Hosted: the page owns New, Close and windows, and there is no app to update.
+        if !self.offers_command(id) {
+            return;
+        }
         // A menu/shortcut opens the settings first; the Print page's button submits explicitly.
         if id == "file.print" {
             if self.services.print_native.is_some() {
@@ -369,7 +382,23 @@ impl SheetApp {
             self.run_or_alert("review.unprotectSheet", json!({}));
             return;
         }
+        // Hosted: no Start screen, no other windows and no agent instructions.
+        if self.hosted() && matches!(name, "start" | "agents" | "arrangeAll") {
+            return;
+        }
         match name {
+            // Hosted: Save As goes to the page, which asks for the new name itself.
+            "saveAs" if self.services.host_save.is_some() => {
+                if let Err(e) = self.host_save_workbook(true) {
+                    self.alert(e);
+                }
+            }
+            // Web without a save picker: a copy downloads (or goes to the hosting page) at once;
+            // a typed path has no file system to land in.
+            "saveCopy" if self.services.pick_save.is_none() && self.services.download.is_some() => {
+                let fmt = params.get("format").and_then(Json::as_str).unwrap_or("xlsx").to_string();
+                backstage::save_copy(self, &fmt);
+            }
             "open" => {
                 if let Some(start) = &self.services.open_async {
                     start();

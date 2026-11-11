@@ -140,6 +140,7 @@ impl SheetApp {
         updates_ui::tick(self, ctx);
         // Files read asynchronously (web file picker, dropped files).
         self.poll_async_opens();
+        self.poll_imports();
         self.autosave(ctx);
         self.update_title(ctx);
         self.request_hidden_paint(ctx);

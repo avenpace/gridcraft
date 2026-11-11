@@ -5,6 +5,7 @@ type OpenUrl = Box<dyn Fn(&str)>;
 type CopyHtml = Box<dyn FnMut(&str, &str) -> Result<(), String>>;
 type Download = Box<dyn Fn(&str, &[u8])>;
 type PrintPdf = Box<dyn Fn(&[u8])>;
+type HostSave = Box<dyn Fn(&str, &[u8], bool)>;
 
 /// Host services the platform shell provides (file pickers, opening URLs).
 #[derive(Default)]
@@ -44,6 +45,23 @@ pub struct Services {
     /// Web: hand PDF bytes to the browser's print flow directly (no download,
     /// no intermediate file) — opens the system print dialog on that PDF.
     pub print: Option<PrintPdf>,
+    /// Web: start a browser file pick for Data › Get Data (Text/CSV); the file arrives in
+    /// [`Services::import_inbox`] and is imported into the active workbook as a new sheet,
+    /// instead of opening as a workbook of its own.
+    pub pick_import_async: Option<Box<dyn Fn(Inbox)>>,
+    /// Files picked for Data › Get Data, imported on the next frame.
+    pub import_inbox: Inbox,
+    /// Web, hosted by Clawku (`?host=parent&open=host`, framed by a same-origin parent): the page
+    /// owns the file list, New/Open/Close, sharing, sign-in and the user's name, and the app shows
+    /// the one workbook it was sent. Everything that would make or show another workbook, and the
+    /// standalone app's extras, is hidden.
+    pub hosted: bool,
+    /// Hosted: hand the workbook itself to the page, `(name, bytes, save_as)`: Save overwrites the
+    /// page's file under the workbook's name (`false`); Save As lets the page ask for a new name
+    /// (`true`). Copies and exports still go through [`Services::download`].
+    pub host_save: Option<HostSave>,
+    /// Hosted: the page's own Share (the title bar's Share button).
+    pub share: Option<Box<dyn Fn()>>,
 }
 
 /// Shared queue of files read asynchronously (browser file picker, drag and drop).

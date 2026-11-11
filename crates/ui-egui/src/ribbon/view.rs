@@ -70,15 +70,18 @@ pub(super) fn view(app: &mut SheetApp, ui: &mut Ui) {
         act(app, "view.zoomToSelection", json!({"viewWidth": r.width(), "viewHeight": r.height()}));
     }
     sep(ui);
-    let __k = big_button(ui, Icon::NewFile, "New\nWindow", "New Window", false);
-    control_keytip(app, ui, &__k, "view.newWindow");
-    if __k.clicked() {
-        act(app, "view.newWindow", json!({}));
-    }
-    let __k = big_button(ui, Icon::Table, "Arrange\nAll", "Arrange All", false);
-    control_keytip(app, ui, &__k, "view.arrangeAll");
-    if __k.clicked() {
-        app.open_dialog("arrangeAll", json!({}));
+    // Hosted: the page shows one workbook in one window.
+    if !app.hosted() {
+        let __k = big_button(ui, Icon::NewFile, "New\nWindow", "New Window", false);
+        control_keytip(app, ui, &__k, "view.newWindow");
+        if __k.clicked() {
+            act(app, "view.newWindow", json!({}));
+        }
+        let __k = big_button(ui, Icon::Table, "Arrange\nAll", "Arrange All", false);
+        control_keytip(app, ui, &__k, "view.arrangeAll");
+        if __k.clicked() {
+            app.open_dialog("arrangeAll", json!({}));
+        }
     }
     let fp = big_button(ui, Icon::Freeze, "Freeze\nPanes", "Freeze Panes", true);
     for sequence in

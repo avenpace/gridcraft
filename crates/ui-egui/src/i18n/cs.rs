@@ -380,7 +380,7 @@ pub(super) fn translate(text: &str) -> Option<&'static str> {
         "Command\nPalette" => "Paleta\npříkazů",
         "Agent\nControl" => "Řízení\nagenty",
         "Action\nJournal" => "Deník\nakcí",
-        "About\nGridCraft" => "O aplikaci\nGridCraft",
+        "About\nClawSheet" => "O aplikaci\nClawSheet",
         "Share" => "Sdílet",
         "Add Chart\nElement" => "Přidat prvek\ngrafu",
         "Change\nChart Type" => "Změnit\ntyp grafu",

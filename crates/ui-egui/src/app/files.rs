@@ -16,6 +16,7 @@ impl SheetApp {
     /// password dialog and the control channel.
     pub fn after_open(&mut self, path: Option<&str>, r: &Json) {
         self.backstage = None;
+        self.keep_only_active();
         if let Some(path) = path {
             self.ui.recent.retain(|p| p != path);
             self.ui.recent.insert(0, path.to_string());
@@ -89,6 +90,7 @@ impl SheetApp {
                 // A file picked from File › Open (web) arrives here: show it, not the Backstage.
                 Ok(r) => {
                     self.backstage = None;
+                    self.keep_only_active();
                     self.show_open_warnings(&r);
                 }
                 Err(e) if e.contains(gridcraft_engine::io::PASSWORD_REQUIRED) => {
@@ -98,6 +100,19 @@ impl SheetApp {
                 Err(e) => self.message = Some(("ClawSheet".into(), clean_error(&e))),
             }
             self.after_engine();
+        }
+    }
+
+    /// Data › Get Data (web): files picked in the browser are imported into the active workbook
+    /// as a new sheet (`data.getData`), named after the file.
+    pub(super) fn poll_imports(&mut self) {
+        let arrived: Vec<(String, Vec<u8>)> =
+            std::mem::take(&mut *self.services.import_inbox.lock().unwrap_or_else(std::sync::PoisonError::into_inner));
+        for (name, bytes) in arrived {
+            let text = String::from_utf8_lossy(&bytes).into_owned();
+            let sheet =
+                std::path::Path::new(&name).file_stem().and_then(std::ffi::OsStr::to_str).unwrap_or("Data").chars().take(31).collect::<String>();
+            self.run_or_alert("data.getData", json!({"text": text, "sheet": sheet}));
         }
     }
 
@@ -119,9 +134,123 @@ impl SheetApp {
         }
     }
 
+    /// Hosted by Clawku (see [`crate::Services::hosted`]): the page owns the files, so the app
+    /// hides everything that would make or show another workbook.
+    pub fn hosted(&self) -> bool {
+        self.services.hosted
+    }
+
+    /// Whether the interface offers command `id`. A hosted app doesn't: making, closing or
+    /// arranging workbooks and windows is the page's, and the page's app is updated with the page.
+    pub fn offers_command(&self, id: &str) -> bool {
+        !(self.hosted()
+            && matches!(
+                id,
+                "file.new" | "file.close" | "window.close" | "view.newWindow" | "view.arrangeAll" | "app.checkForUpdates" | "help.checkForUpdates"
+            ))
+    }
+
+    /// Hosted Save and Save As: the workbook goes to the page (`<app>:save`) under its own name,
+    /// the one the page opened it with. Save (`save_as: false`) overwrites the page's file and
+    /// leaves the workbook clean; Save As (`true`) lets the page ask for the new name. `Ok(false)`
+    /// when the app isn't hosted (the caller saves as usual).
+    pub fn host_save_workbook(&mut self, save_as: bool) -> Result<bool, String> {
+        if self.services.host_save.is_none() {
+            return Ok(false);
+        }
+        self.settle_drafts()?;
+        self.store_view_state();
+        let d = self.session.active().ok_or("No workbook is open.")?;
+        let name = host_save_name(&d.display_title());
+        let bytes = gridcraft_engine::io::save_bytes(&d.wb, &name).map_err(|e| clean_error(&e.to_string()))?;
+        if let Some(send) = &self.services.host_save {
+            send(&name, &bytes, save_as);
+        }
+        // Like a file Save, only a full-fidelity format makes the workbook clean; a Save As is
+        // the page's to finish (it may be cancelled there).
+        let full = matches!(
+            gridcraft_engine::io::FileKind::from_path(&name),
+            Some(gridcraft_engine::io::FileKind::Xlsx | gridcraft_engine::io::FileKind::Json)
+        );
+        if !save_as
+            && full
+            && let Some(d) = self.session.active_mut()
+        {
+            d.saved = d.wb.clone();
+        }
+        Ok(true)
+    }
+
+    /// The name for a copy or export of the active workbook as `ext`: the workbook's name with
+    /// that extension, or "Name (copy).ext" when that would be the workbook's own name, so a
+    /// hosting page stores it as a new file next to the original.
+    pub fn copy_name(&self, ext: &str) -> String {
+        let title = self.session.active().map(|d| d.display_title()).unwrap_or_else(|| "Book1".into());
+        copy_name(&title, ext)
+    }
+
+    /// Hosted: a file the page opened replaces the workbook that was showing, so the app always
+    /// shows the one workbook the page sent. The page asked about unsaved changes itself.
+    pub(super) fn keep_only_active(&mut self) {
+        if !self.hosted() {
+            return;
+        }
+        let Some(keep) = self.session.active().map(|d| d.uid) else { return };
+        while let Some(i) = self.session.documents().iter().position(|d| d.uid != keep) {
+            self.session.close_document(i);
+        }
+        // Editing together ends with its workbook (a new `liveOpen` starts it again).
+        if self.session.live.as_ref().is_some_and(|l| l.doc != keep) {
+            self.session.live = None;
+        }
+        if let Some(i) = self.session.documents().iter().position(|d| d.uid == keep) {
+            self.session.set_active(i);
+        }
+    }
+
     /// Flip AutoSave (title-bar switch / Options ▸ Save). Persisted with the other UI
     /// preferences, so it stays as the user left it across restarts (#1901).
     pub fn toggle_autosave(&mut self) {
         self.ui.autosave = !self.ui.autosave;
+    }
+}
+
+/// The name a hosted Save hands the page: the workbook's own name when the app writes that format
+/// (an .xlsx, or a .csv, .tsv or .json it opened), else the name as an .xlsx workbook.
+pub(crate) fn host_save_name(title: &str) -> String {
+    use gridcraft_engine::io::FileKind;
+    if matches!(FileKind::from_path(title), Some(FileKind::Xlsx | FileKind::Csv | FileKind::Tsv | FileKind::Json)) {
+        return title.to_string();
+    }
+    let stem = std::path::Path::new(title).file_stem().and_then(std::ffi::OsStr::to_str).filter(|s| !s.is_empty()).unwrap_or("Book1");
+    format!("{stem}.xlsx")
+}
+
+/// See [`SheetApp::copy_name`].
+pub(crate) fn copy_name(title: &str, ext: &str) -> String {
+    let stem = std::path::Path::new(title).file_stem().and_then(std::ffi::OsStr::to_str).filter(|s| !s.is_empty()).unwrap_or("Book1");
+    let name = format!("{stem}.{ext}");
+    if name.eq_ignore_ascii_case(title) { format!("{stem} (copy).{ext}") } else { name }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{copy_name, host_save_name};
+
+    #[test]
+    fn a_hosted_save_keeps_the_workbook_s_own_name() {
+        assert_eq!(host_save_name("Budget.xlsx"), "Budget.xlsx");
+        assert_eq!(host_save_name("Macros.xlsm"), "Macros.xlsm");
+        assert_eq!(host_save_name("Data.csv"), "Data.csv", "a CSV it opened is saved back as CSV");
+        assert_eq!(host_save_name("Book1"), "Book1.xlsx", "a new workbook becomes an .xlsx");
+        assert_eq!(host_save_name("Old.xls"), "Old.xlsx", "an import-only format is saved as .xlsx");
+    }
+
+    #[test]
+    fn a_copy_is_never_named_like_the_workbook() {
+        assert_eq!(copy_name("Budget.xlsx", "pdf"), "Budget.pdf");
+        assert_eq!(copy_name("Budget.xlsx", "xlsx"), "Budget (copy).xlsx");
+        assert_eq!(copy_name("Data.CSV", "csv"), "Data (copy).csv");
+        assert_eq!(copy_name("Book1", "xlsx"), "Book1.xlsx");
     }
 }

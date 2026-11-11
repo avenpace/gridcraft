@@ -343,7 +343,7 @@ pub(super) fn translate(text: &str) -> Option<&'static str> {
         "Command\nPalette" => "Παλέτα\nεντολών",
         "Agent\nControl" => "Έλεγχος\nπρακτόρων",
         "Action\nJournal" => "Ιστορικό\nενεργειών",
-        "About\nGridCraft" => "Πληροφορίες για\nτο ClawSheet",
+        "About\nClawSheet" => "Πληροφορίες για\nτο ClawSheet",
         "Share" => "Κοινή χρήση",
         "Add Chart\nElement" => "Προσθήκη στοιχείου\nγραφήματος",
         "Change\nChart Type" => "Αλλαγή τύπου\nγραφήματος",

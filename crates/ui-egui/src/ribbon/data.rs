@@ -5,7 +5,13 @@ pub(super) fn data(app: &mut SheetApp, ui: &mut Ui) {
     let gd = big_button(ui, Icon::Folder, "Get Data\n(Text/CSV)", "Import a text or CSV file", false);
     control_keytip(app, ui, &gd, "data.getData");
     if gd.clicked() {
-        app.open_dialog("open", json!({}));
+        // Web: the browser's own picker, and the file becomes a new sheet of this workbook (a
+        // hosting page's file list is for opening workbooks, not importing data).
+        if let Some(pick) = &app.services.pick_import_async {
+            pick(app.services.import_inbox.clone());
+        } else {
+            app.open_dialog("open", json!({}));
+        }
     }
     sep(ui);
     ui.vertical(|ui| {

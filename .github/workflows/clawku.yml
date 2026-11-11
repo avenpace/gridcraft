@@ -23,13 +23,24 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Install trunk (prebuilt release binary)
+      # Signed-in downloads (gh + the job token): anonymous GitHub release downloads time out under
+      # load (2026-11-09), and trunk would fetch wasm-bindgen anonymously. trunk uses a wasm-bindgen
+      # on PATH when its version matches the one in Cargo.lock.
+      - name: Install trunk and wasm-bindgen (prebuilt release binaries)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          curl -sSL https://github.com/trunk-rs/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz \
-            | sudo tar -xz -C /usr/local/bin
+          tmp=$(mktemp -d)
+          gh release download -R trunk-rs/trunk --pattern 'trunk-x86_64-unknown-linux-gnu.tar.gz' -D "$tmp"
+          sudo tar -xzf "$tmp"/trunk-*.tar.gz -C /usr/local/bin
           sudo chmod +x /usr/local/bin/trunk
+          wb=$(awk '/^name = "wasm-bindgen"$/{getline; gsub(/"/,"",$3); print $3; exit}' Cargo.lock)
+          gh release download "$wb" -R rustwasm/wasm-bindgen --pattern "wasm-bindgen-$wb-x86_64-unknown-linux-musl.tar.gz" -D "$tmp"
+          tar -xzf "$tmp/wasm-bindgen-$wb-x86_64-unknown-linux-musl.tar.gz" -C "$tmp"
+          sudo install -m 0755 "$tmp/wasm-bindgen-$wb-x86_64-unknown-linux-musl/wasm-bindgen" /usr/local/bin/wasm-bindgen
           trunk --version
+          wasm-bindgen --version
 
       # packaging/web/package.sh sources packaging/env.sh itself:
       # VERSION from [workspace.package], DIST defaults to $ROOT/dist/release.

@@ -242,7 +242,7 @@ pub(super) fn translate(text: &str) -> Option<&'static str> {
         "Command\nPalette" => "Палітра\nкоманд",
         "Agent\nControl" => "Керування\nагентом",
         "Action\nJournal" => "Журнал\nдій",
-        "About\nGridCraft" => "Про\nGridCraft",
+        "About\nClawSheet" => "Про\nClawSheet",
         "Share" => "Поділитися",
         "Add Chart\nElement" => "Додати елемент\nдіаграми",
         "Change\nChart Type" => "Змінити тип\nдіаграми",

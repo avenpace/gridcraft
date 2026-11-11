@@ -14,8 +14,12 @@
 //!   copied.
 //! - `gridcraft:save` (to the host): `{ name, saveAs, bytes }` for every file GridCraft would
 //!   otherwise download: Save and Save As (an .xlsx workbook) and Export as PDF. The host stores
-//!   it and reports failures itself. GridCraft doesn't tell the host which saves make a file the
-//!   document, so `saveAs` is always `false`.
+//!   it and reports failures itself. On other hosts `saveAs` is always `false`. Hosted by Clawku
+//!   (`?host=parent&open=host`, see [`crate::clawku_pick`]): Save sends the workbook under the name
+//!   it was opened with and `saveAs: false` (it overwrites the host's file); Save As sends it with
+//!   `saveAs: true` (the host asks for the new name); copies and exports (PDF, CSV, web page, a
+//!   copy of the workbook) are `saveAs: false` under a name other than the workbook's, so the host
+//!   stores them next to it.
 //! - `gridcraft:dirty` whenever unsaved changes appear or go away, `gridcraft:failed` when the
 //!   app couldn't start.
 //!
@@ -62,14 +66,32 @@ impl Bridge {
 
     /// Send saved and exported files to the host instead of downloading them, and hear files
     /// from it.
+    ///
+    /// Hosted by Clawku, the app also learns it is hosted (`Services::hosted`): Save and Save As
+    /// go to the page through `host_save`, Share through `share`, and a download is only ever a
+    /// copy, which leaves the workbook's name and unsaved state alone.
     pub fn connect(&self, services: &mut Services, inbox: Inbox, ctx: egui::Context) {
         self.listen(inbox, ctx);
+        let hosted = crate::clawku_pick::hosted();
+        services.hosted = hosted;
         let bridge = self.clone();
         services.download = Some(Box::new(move |name: &str, bytes: &[u8]| {
-            if let Err(e) = bridge.post_save(name, bytes) {
+            let sent = if hosted { bridge.post_copy(name, bytes) } else { bridge.post_save(name, bytes) };
+            if let Err(e) = sent {
                 log::error!("couldn't hand {name} to the page: {e}");
             }
         }));
+        if hosted {
+            let bridge = self.clone();
+            services.host_save = Some(Box::new(move |name: &str, bytes: &[u8], save_as: bool| {
+                if let Err(e) = bridge.host.post_save(&file_name(name), bytes, None, save_as) {
+                    log::error!("couldn't hand {name} to the page: {e}");
+                }
+            }));
+            services.share = Some(Box::new(|| {
+                crate::clawku_pick::host_share(APP);
+            }));
+        }
     }
 
     /// `?author=`: the host's name for the user signs new notes and comments.
@@ -110,6 +132,12 @@ impl Bridge {
         self.host.post_save(&name, bytes, None, false)?;
         self.saved.borrow_mut().push(name);
         Ok(())
+    }
+
+    /// Hosted: a copy or export goes to the page as a new file (`saveAs: false`); it isn't the
+    /// workbook, so the workbook keeps its name and unsaved state.
+    fn post_copy(&self, path: &str, bytes: &[u8]) -> Result<(), String> {
+        self.host.post_save(&file_name(path), bytes, None, false)
     }
 
     fn listen(&self, inbox: Inbox, ctx: egui::Context) {

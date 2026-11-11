@@ -9,8 +9,8 @@ impl SheetApp {
         if let Some(dl) = &self.services.download
             && let Some(b) = result.get("base64").and_then(Json::as_str).and_then(gridcraft_engine::io::base64_decode)
         {
-            let title = self.session.active().map(|d| d.display_title()).unwrap_or_else(|| "Book1".into());
-            dl(&std::path::Path::new(&title).with_extension("pdf").to_string_lossy(), &b);
+            // A copy: a hosting page stores it next to the workbook under its own name.
+            dl(&self.copy_name("pdf"), &b);
         }
     }
 

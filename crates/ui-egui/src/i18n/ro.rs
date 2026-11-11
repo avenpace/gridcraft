@@ -247,7 +247,7 @@ pub(super) fn translate(text: &str) -> Option<&'static str> {
         "Command\nPalette" => "Paleta de\ncomenzi",
         "Agent\nControl" => "Control prin\nagenți",
         "Action\nJournal" => "Jurnal de\nacțiuni",
-        "About\nGridCraft" => "Despre\nGridCraft",
+        "About\nClawSheet" => "Despre\nClawSheet",
         "Share" => "Partajare",
         "Add Chart\nElement" => "Adăugare element\nde diagramă",
         "Change\nChart Type" => "Schimbare\ntip diagramă",

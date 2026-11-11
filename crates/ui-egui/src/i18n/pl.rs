@@ -240,7 +240,7 @@ pub(super) fn translate(text: &str) -> Option<&'static str> {
         "Command\nPalette" => "Paleta\npoleceń",
         "Agent\nControl" => "Sterowanie\nagentem",
         "Action\nJournal" => "Dziennik\nakcji",
-        "About\nGridCraft" => "O programie\nGridCraft",
+        "About\nClawSheet" => "O programie\nClawSheet",
         "Share" => "Udostępnij",
         "Add Chart\nElement" => "Dodaj element\nwykresu",
         "Change\nChart Type" => "Zmień\ntyp wykresu",

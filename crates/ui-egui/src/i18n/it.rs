@@ -246,7 +246,7 @@ pub(super) fn translate(text: &str) -> Option<&'static str> {
         "Command\nPalette" => "Riquadro\ncomandi",
         "Agent\nControl" => "Controllo\nagenti",
         "Action\nJournal" => "Registro\nazioni",
-        "About\nGridCraft" => "Informazioni su\nGridCraft",
+        "About\nClawSheet" => "Informazioni su\nClawSheet",
         "Share" => "Condividi",
         "Add Chart\nElement" => "Aggiungi\nelemento grafico",
         "Change\nChart Type" => "Cambia tipo\ndi grafico",

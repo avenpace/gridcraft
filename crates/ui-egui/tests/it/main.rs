@@ -56,6 +56,7 @@ mod go_to_dialog;
 mod header_autofit;
 mod header_column_drag;
 mod host_chrome;
+mod hosted;
 mod hyperlink_ctrl_click;
 mod hyperlink_dialog;
 mod in_cell_editor_size;
