@@ -54,10 +54,36 @@ fn a_drag_scrolls_and_holds_the_press_back() {
         run(&mut g, f64::from(12 + frames) / 60.0, Vec::new());
     }
     assert!(frames < 1000, "the coast stops");
-    // A mouse after it is left alone.
+    // A mouse press after it waits a frame for a finger (this is a touch screen), then goes
+    // through as it was; a press and release in one frame (a click) at once.
     let mouse = vec![Event::PointerMoved(p), press(p, true)];
-    assert_eq!(run(&mut g, 30.0, mouse.clone()), mouse);
+    assert_eq!(run(&mut g, 30.0, mouse.clone()), [Event::PointerMoved(p)]);
+    assert_eq!(run(&mut g, 30.02, Vec::new()), [Event::PointerMoved(p), press(p, true)]);
     assert!(!g.press_was_touch());
+    let click = vec![press(p, true), press(p, false)];
+    assert_eq!(run(&mut g, 30.04, click.clone()), click);
+    // On a device that has shown no finger the mouse is never held.
+    let mut desk = TouchGesture::default();
+    assert_eq!(run(&mut desk, 0.0, mouse.clone()), mouse);
+}
+
+/// The browser's `pointerdown` comes in a frame of its own before the `touchstart`: on a touch
+/// screen it is held and dropped for the finger; where no finger was expected it went through,
+/// and is released as the finger takes over.
+#[test]
+fn a_fingers_early_pointerdown_never_stays_pressed_in_egui() {
+    let p = egui::pos2(100.0, 300.0);
+    let mut g = TouchGesture::default();
+    g.expect_touch();
+    assert!(presses(&run(&mut g, 0.0, vec![Event::PointerMoved(p), press(p, true)])).is_empty(), "held a frame");
+    assert!(g.repaint_after().is_some());
+    let out = run(&mut g, 0.02, vec![press(p, true), touch(1, TouchPhase::Start, p)]);
+    assert!(presses(&out).is_empty(), "the finger's: dropped {out:?}");
+
+    let mut g = TouchGesture::default();
+    assert_eq!(presses(&run(&mut g, 0.0, vec![press(p, true)])), [true], "not known to be a finger: through");
+    let out = run(&mut g, 0.02, vec![press(p, true), touch(1, TouchPhase::Start, p)]);
+    assert_eq!(presses(&out), [false], "released as the finger takes over: {out:?}");
 }
 
 #[test]
@@ -189,7 +215,15 @@ struct Phone {
 }
 
 impl Phone {
+    /// A tablet whose web shell found a coarse pointer (`SheetApp::expect_touch`).
     fn new() -> Self {
+        let mut p = Self::desk();
+        p.app.expect_touch();
+        p
+    }
+
+    /// A desktop: no coarse pointer, no finger seen yet.
+    fn desk() -> Self {
         let ctx = egui::Context::default();
         ctx.set_fonts(crate::theme::pinned_font_definitions());
         crate::theme::apply(&ctx, false);
@@ -223,13 +257,11 @@ impl Phone {
         }
     }
 
-    /// Finger `id` comes down (the first finger with the browser's emulated press).
+    /// Finger `id` comes down as a browser reports it: its `pointerdown` (a press, and a frame at
+    /// once), then its `touchstart` (the emulated press of the first finger with the touch).
     fn down(&mut self, id: u64, at: Pos2) {
-        let mut ev = vec![touch(id, TouchPhase::Start, at)];
-        if id == 1 {
-            ev.splice(0..0, [Event::PointerMoved(at), press(at, true)]);
-        }
-        self.frame(ev);
+        self.frame(vec![Event::PointerMoved(at), press(at, true)]);
+        self.frame(vec![press(at, true), touch(id, TouchPhase::Start, at)]);
     }
 
     fn drag(&mut self, id: u64, from: Pos2, to: Pos2, steps: usize) {
@@ -239,8 +271,21 @@ impl Phone {
         }
     }
 
+    /// Its `pointerup` (a release, a frame at once), then its `touchend`.
     fn up(&mut self, id: u64, at: Pos2) {
+        self.frame(vec![press(at, false)]);
         self.frame(vec![press(at, false), Event::PointerGone, touch(id, TouchPhase::End, at)]);
+    }
+
+    /// Down at `from`, ten moves a frame apart to `to`, up.
+    fn swipe(&mut self, from: Pos2, to: Pos2) {
+        self.down(1, from);
+        self.drag(1, from, to, 10);
+        self.up(1, to);
+    }
+
+    fn dirty(&self) -> bool {
+        self.app.session.active().unwrap().is_dirty()
     }
 
     fn selection(&self) -> gridcraft_engine::Selection {
@@ -359,8 +404,11 @@ fn a_pinch_zooms_about_its_centre() {
     let centre = p.app.grid.cells_rect.unwrap().center();
     let under = p.cell_at(centre);
     let (a, b) = (centre - egui::vec2(60.0, 0.0), centre + egui::vec2(60.0, 0.0));
+    let dirty = p.dirty();
     p.down(1, a);
-    p.down(2, b);
+    // The second finger's `pointerdown`, then its `touchstart`.
+    p.frame(vec![press(b, true)]);
+    p.frame(vec![press(a, true), touch(2, TouchPhase::Start, b)]);
     for i in 1..=12 {
         let spread = egui::vec2(60.0 + 5.0 * i as f32, 0.0);
         p.frame(vec![Event::PointerMoved(centre - spread), touch(1, TouchPhase::Move, centre - spread), touch(2, TouchPhase::Move, centre + spread)]);
@@ -368,22 +416,26 @@ fn a_pinch_zooms_about_its_centre() {
     let zoom = p.zoom();
     assert!(zoom >= 180 && zoom <= 205, "120 pt apart to 240: about twice the zoom, {zoom}%");
     let end = egui::vec2(120.0, 0.0);
+    p.frame(vec![press(centre + end, false)]);
     p.frame(vec![touch(2, TouchPhase::End, centre + end)]);
     p.up(1, centre - end);
     p.idle(3);
     assert_eq!(p.zoom(), zoom, "the zoom stays after the fingers lift");
     assert_eq!(p.cell_at(centre), under, "the cell under the pinch stays under it");
     assert_eq!(p.selection(), sel, "a pinch selects nothing");
+    assert_eq!(p.dirty(), dirty, "nor marks the workbook modified");
+    assert!(p.app.editor.is_none());
 }
 
 /// A mouse drag still selects the range it covers, as before.
 #[test]
 fn a_mouse_drag_still_selects_a_range() {
-    let mut p = Phone::new();
+    let mut p = Phone::desk();
     let from = p.at(CellRef::new(1, 1));
     let to = p.at(CellRef::new(5, 3));
     p.frame(vec![Event::PointerMoved(from)]);
     p.frame(vec![press(from, true)]);
+    assert!(p.app.touch.repaint_after().is_none(), "a desktop's press is never held");
     for i in 1..=8 {
         p.frame(vec![Event::PointerMoved(from + (to - from) * (i as f32 / 8.0))]);
     }
@@ -429,4 +481,61 @@ fn the_fill_handle_fills_only_after_a_long_press() {
     for row in 2..=4 {
         assert_ne!(value(&p, CellRef::new(row, 1)), gridcraft_engine::core::Value::Empty, "held, the handle fills down to row {}", row + 1);
     }
+}
+
+/// Seen in Clawku on a phone: swipes scrolled the sheet but each also selected a range ("32R x
+/// 1C" after two swipes up, "75R x 3C" after one sideways, "72R x 15C" after a pinch). The
+/// browser's `pointerdown` came a frame before its `touchstart` and went through as a mouse
+/// press that stayed down. Swipes (the second one during the first one's glide) select nothing,
+/// and a tap later selects just its cell.
+#[test]
+fn swipes_during_a_glide_select_nothing_and_a_later_tap_selects_one_cell() {
+    let mut p = Phone::new();
+    let sel = p.selection();
+    let dirty = p.dirty();
+    let c = p.app.grid.cells_rect.unwrap().center();
+    let (from, to) = (c + egui::vec2(0.0, 200.0), c - egui::vec2(0.0, 150.0));
+    p.swipe(from, to);
+    // 600 ms after the first came down, the second comes down while the sheet still glides.
+    let first = p.scroll().y;
+    p.idle(36 - 14);
+    assert!(p.app.touch.repaint_after().is_some(), "still gliding");
+    assert!(p.scroll().y > first);
+    p.swipe(from, to);
+    p.idle(300);
+    assert!(p.scroll().y > 2.0 * 350.0 / p.z(), "both swipes scrolled: {:?}", p.scroll());
+    assert_eq!(p.selection(), sel, "two swipes up select nothing");
+    // Sideways.
+    let x = p.scroll().x;
+    p.swipe(c + egui::vec2(250.0, 0.0), c - egui::vec2(250.0, 0.0));
+    p.idle(300);
+    assert!(p.scroll().x > x, "{:?}", p.scroll());
+    assert_eq!(p.selection(), sel, "a sideways swipe selects nothing");
+    assert_eq!(p.dirty(), dirty);
+    assert!(!p.app.grid.drag_select && p.app.editor.is_none());
+    // Two seconds on, a tap selects one cell, and isn't taken for a double-click.
+    p.idle(120);
+    let target = p.cell_at(c);
+    p.down(1, c);
+    p.up(1, c);
+    p.idle(2);
+    assert_eq!(p.selection(), only(target));
+    assert!(p.app.editor.is_none(), "a single tap doesn't edit the cell");
+}
+
+/// On a device not known to have a touch screen (no coarse pointer) the first finger's early
+/// press reaches egui, but it is let go as the finger takes over: the swipe scrolls and selects
+/// no range.
+#[test]
+fn a_swipe_on_an_unknown_device_selects_no_range() {
+    let mut p = Phone::desk();
+    let c = p.app.grid.cells_rect.unwrap().center();
+    p.swipe(c + egui::vec2(0.0, 200.0), c - egui::vec2(0.0, 150.0));
+    p.idle(300);
+    assert!(p.scroll().y > 0.0);
+    let sel = p.selection();
+    assert!(sel.ranges.len() == 1 && sel.ranges[0].is_single(), "no range: {sel:?}");
+    p.swipe(c + egui::vec2(0.0, 200.0), c - egui::vec2(0.0, 150.0));
+    p.idle(300);
+    assert_eq!(p.selection(), sel, "a finger is known now: nothing at all");
 }

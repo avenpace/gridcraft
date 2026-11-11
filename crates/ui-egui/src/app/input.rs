@@ -1,6 +1,12 @@
 use super::{SheetApp, control};
 
 impl SheetApp {
+    /// The device's main pointer is a finger (a phone or tablet): its first press is read as a
+    /// finger's too (`touch::TouchGesture::expect_touch`).
+    pub fn expect_touch(&mut self) {
+        self.touch.expect_touch();
+    }
+
     /// Records capture geometry from the fresh raw frame, then offers exactly one pending synthetic batch and tracks whether it was applied.
     pub fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
         // Capture geometry from this frame's real input before any synthetic event is added. This

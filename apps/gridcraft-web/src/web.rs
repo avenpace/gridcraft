@@ -64,6 +64,10 @@ pub fn start() {
                     }
                     let mut app = SheetApp::new(session, services);
                     app.ui.system_theme = true;
+                    // A phone or tablet: its first press is already a finger's (a drag scrolls).
+                    if coarse_pointer() {
+                        app.expect_touch();
+                    }
                     // `?chrome=none|notitlebar|nofiletab`: a host that embeds the sheet in its own window and owns the files
                     // can leave the title bar and/or the File tab undrawn (`Chrome`, #1877). An unknown value keeps
                     // everything, as the default does.
@@ -124,6 +128,11 @@ pub fn start() {
             }
         }
     });
+}
+
+/// The device's main pointer is a finger (`(pointer: coarse)`): a phone or a tablet.
+fn coarse_pointer() -> bool {
+    web_sys::window().and_then(|w| w.match_media("(pointer: coarse)").ok().flatten()).is_some_and(|m| m.matches())
 }
 
 fn query() -> String {
