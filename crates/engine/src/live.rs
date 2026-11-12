@@ -40,10 +40,15 @@ fn refused(id: &str) -> bool {
     id.starts_with("macro.") || id.starts_with("automate.") || id.starts_with("file.") || id.starts_with("window.")
 }
 
+/// Each person's own view, though it is kept in the workbook (saved with the file): zoom. It never
+/// goes to the host, so zooming (a pinch, Ctrl+wheel, the zoom slider) changes nobody else's copy
+/// and leaves nothing waiting to be stored; a viewer may zoom too.
+const VIEW_ONLY: [&str; 3] = ["view.zoom", "view.zoom100", "view.zoomToSelection"];
+
 /// Whether a command is part of the shared workbook: anything that can change it, and the shared
 /// history and clipboards.
 fn shared(spec: &CommandSpec) -> bool {
-    spec.undoable || SHARED_EXTRA.contains(&spec.id)
+    (spec.undoable || SHARED_EXTRA.contains(&spec.id)) && !VIEW_ONLY.contains(&spec.id)
 }
 
 /// Undo and Redo: they wait for their turn in the shared order.
@@ -202,6 +207,8 @@ impl Session {
         }
         let requests = self.ui_requests.len();
         let place = self.active().map(|d| (d.wb.active_sheet(), d.selection.clone()));
+        // This person's zoom per sheet: putting the workbook back below must not undo it.
+        let zooms: Vec<u16> = self.active().map(|d| d.wb.sheets.iter().map(|sh| sh.zoom).collect()).unwrap_or_default();
         let pending = self.live.as_mut().map(|l| std::mem::take(&mut l.pending)).unwrap_or_default();
         // Yours go back to before the first of them…
         if let Some(first) = pending.first() {
@@ -228,6 +235,16 @@ impl Session {
                 d.wb.set_active_sheet(sheet);
             }
             d.selection = selection;
+            if d.wb.sheets.iter().zip(&zooms).any(|(sh, z)| sh.zoom != *z) {
+                let wb = Arc::make_mut(&mut d.wb);
+                for (i, z) in zooms.iter().enumerate() {
+                    if let Some(sh) = wb.sheet_mut(i)
+                        && sh.zoom != *z
+                    {
+                        sh.zoom = *z;
+                    }
+                }
+            }
         }
         self.ui_requests.truncate(requests);
         if let Some(live) = self.live.as_mut() {
@@ -395,6 +412,36 @@ mod tests {
         let mut seq = 0;
         host(&mut seq, &mut [("a", &mut a), ("b", &mut b)], &[0]);
         assert_eq!(b.active().unwrap().selection.a1(), "Z9");
+    }
+
+    #[test]
+    fn zoom_is_each_persons_own_and_never_a_change() {
+        let (mut a, mut b) = (copy("a", true), copy("b", true));
+        // A pinch, Ctrl+wheel and the zoom slider all run view.zoom.
+        for id in ["view.zoom", "view.zoom100", "view.zoomToSelection"] {
+            a.execute(id, json!({ "percent": 150 })).unwrap();
+        }
+        a.execute("view.zoom", json!({ "percent": 175 })).unwrap();
+        assert!(a.live_take_outbox().is_empty(), "zoom sends nothing to the host");
+        assert_eq!(a.live.as_ref().unwrap().pending(), 0, "zoom leaves nothing waiting");
+        let mut v = copy("v", false);
+        assert!(v.execute("view.zoom", json!({ "percent": 50 })).is_ok(), "a viewer may zoom");
+        assert!(v.live_take_outbox().is_empty());
+        // The host never runs a zoom either.
+        let op = json!({ "id": "view.zoom", "params": { "percent": 300 }, "sheet": 0, "selection": b.active().unwrap().selection });
+        assert!(b.live_apply(1, "a", &op).is_err());
+        // A real edit is still a change, and someone else's change (taken first, so a's edit is put
+        // back and run again) keeps a's zoom.
+        set(&mut a, "A1", "1");
+        assert_eq!(a.live.as_ref().unwrap().pending(), 1, "an edit goes to the host");
+        set(&mut b, "B1", "2");
+        let mut seq = 0;
+        host(&mut seq, &mut [("a", &mut a), ("b", &mut b)], &[1, 0]);
+        assert_eq!(seq, 2, "the two edits, and no zoom");
+        assert_eq!(value(&mut a, "B1"), json!(2.0));
+        assert_eq!(value(&mut a, "A1"), json!(1.0));
+        assert_eq!(a.active().unwrap().wb.sheets[0].zoom, 175, "someone else's change keeps your zoom");
+        assert_eq!(b.active().unwrap().wb.sheets[0].zoom, 100, "and nobody else's zoom changed");
     }
 
     #[test]
